@@ -1,0 +1,327 @@
+\documentclass[10pt,a4paper,twocolumn]{article}
+
+% ============================================
+% PACKAGES
+% ============================================
+
+% --- Typography and Layout ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage{times}  % Times font (standard for ML papers)
+
+% --- Page Layout (NeurIPS/arXiv style) ---
+\usepackage[
+    top=1in,
+    bottom=1in,
+    left=0.75in,
+    right=0.75in,
+    columnsep=0.25in
+]{geometry}
+
+% --- Text Justification ---
+\usepackage{ragged2e}
+\justifying
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0pt}
+
+% --- Mathematics ---
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{bm}  % Bold math symbols
+
+% --- Graphics and Figures ---
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{float}
+
+% --- Tables ---
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+
+% --- Colors and Hyperlinks ---
+\usepackage[dvipsnames]{xcolor}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,citecolor=ForestGreen,urlcolor=MidnightBlue]{hyperref}
+
+% --- Citations ---
+\usepackage[numbers,sort&compress]{natbib}
+
+% --- Algorithms ---
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+% --- Miscellaneous ---
+\usepackage{enumitem}
+\usepackage{cleveref}
+
+% ============================================
+% CUSTOM COMMANDS
+% ============================================
+
+% Math operators
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\E}{\mathbb{E}}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\KL}{KL}
+
+% Common symbols
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\x}{\mathbf{x}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand{\z}{\mathbf{z}}
+\newcommand{\w}{\mathbf{w}}
+\newcommand{\h}{\mathbf{h}}
+\newcommand{\thetab}{\boldsymbol{\theta}}
+\newcommand{\mub}{\boldsymbol{\mu}}
+\newcommand{\sigmab}{\boldsymbol{\sigma}}
+\newcommand{\epsilonb}{\boldsymbol{\epsilon}}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+% Custom abstract with centered title
+\renewenvironment{abstract}{%
+    \begin{center}
+        \textbf{Abstract}
+    \end{center}
+    \vspace{-0.5em}
+    \noindent\ignorespaces
+}{\par\vspace{1em}}
+
+% ============================================
+% TITLE AND AUTHORS
+% ============================================
+
+\title{\textbf{Your Paper Title Here: \\ A Modern Template for Machine Learning Research}}
+
+\author{
+    First Author\textsuperscript{1}\thanks{Equal contribution.} \quad
+    Second Author\textsuperscript{2}\footnotemark[1] \quad
+    Third Author\textsuperscript{1,2}
+    \\[0.5em]
+    \textsuperscript{1}First Institution, City, Country \\
+    \textsuperscript{2}Second Institution, City, Country \\[0.5em]
+    \texttt{\{first.author, third.author\}@institution1.edu} \\
+    \texttt{second.author@institution2.org}
+}
+
+\date{}
+
+% ============================================
+% DOCUMENT
+% ============================================
+
+\begin{document}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\vspace{-1em}
+\end{@twocolumnfalse}
+]
+
+% ============================================
+% ABSTRACT
+% ============================================
+
+\begin{abstract}
+\noindent Write your abstract here. The abstract should be a single paragraph that summarizes the key contributions and findings of your paper. It should be self-contained and provide readers with a clear understanding of what your paper is about. This template is designed to mimic the style of famous machine learning papers such as DDPM and ``Attention Is All You Need''. It includes commonly used packages, custom commands for mathematical notation, and a clean, professional layout. Keep your abstract between 150--250 words. Avoid citations and undefined acronyms in the abstract.
+\end{abstract}
+
+
+% ============================================
+% INTRODUCTION
+% ============================================
+
+\section{Introduction}
+\label{sec:introduction}
+
+Your introduction goes here. Start with the broader context and motivation for your work. Then narrow down to the specific problem you are addressing.
+
+Key elements to include:
+\begin{itemize}[nosep]
+    \item Problem statement and motivation
+    \item Brief overview of existing approaches and their limitations
+    \item Your proposed solution and its advantages
+    \item Summary of contributions (often as a bulleted list)
+\end{itemize}
+
+\paragraph{Contributions.} Our main contributions are:
+\begin{enumerate}[nosep]
+    \item First contribution: briefly describe.
+    \item Second contribution: briefly describe.
+    \item Third contribution: briefly describe.
+\end{enumerate}
+
+% ============================================
+% RELATED WORK
+% ============================================
+
+\section{Related Work}
+\label{sec:related_work}
+
+Discuss related work here. Organize by topic or theme rather than listing papers chronologically. Compare and contrast with your approach.
+
+\paragraph{Topic 1.} Discuss relevant work in this area~\citep{example2020paper}.
+
+\paragraph{Topic 2.} Discuss relevant work in this area~\citep{vaswani2017attention}.
+
+% ============================================
+% METHOD
+% ============================================
+
+\section{Method}
+\label{sec:method}
+
+Describe your method here. Start with an overview, then dive into the details.
+
+\subsection{Problem Setup}
+\label{sec:problem_setup}
+
+Define your problem formally. For example:
+
+\begin{definition}[Problem Definition]
+    Given input data $\x \in \R^d$, we aim to learn a function $f_\theta: \R^d \to \R^k$ that minimizes the expected loss:
+    \begin{equation}
+        \mathcal{L}(\thetab) = \E_{(\x,\y) \sim p_\text{data}} \left[ \ell(f_{\thetab}(\x), \y) \right]
+    \end{equation}
+    where $\ell$ is a suitable loss function.
+\end{definition}
+
+\subsection{Model Architecture}
+\label{sec:architecture}
+
+Describe your model architecture.
+
+\begin{equation}
+    \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+\end{equation}
+
+\subsection{Training Procedure}
+\label{sec:training}
+
+Describe your training procedure. Algorithm pseudocode can be included:
+
+\begin{algorithm}[t]
+    \caption{Training Algorithm}
+    \label{alg:training}
+    \begin{algorithmic}[1]
+        \REQUIRE Dataset $\mathcal{D}$, learning rate $\eta$, iterations $T$
+        \STATE Initialize parameters $\thetab$
+        \FOR{$t = 1$ to $T$}
+            \STATE Sample minibatch $\{(\x_i, \y_i)\}_{i=1}^B$ from $\mathcal{D}$
+            \STATE Compute loss $\mathcal{L} = \frac{1}{B}\sum_{i=1}^B \ell(f_{\thetab}(\x_i), \y_i)$
+            \STATE Update $\thetab \leftarrow \thetab - \eta \nabla_{\thetab} \mathcal{L}$
+        \ENDFOR
+        \RETURN $\thetab$
+    \end{algorithmic}
+\end{algorithm}
+
+% ============================================
+% EXPERIMENTS
+% ============================================
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Experimental Setup}
+\label{sec:setup}
+
+Describe your experimental setup, including:
+\begin{itemize}[nosep]
+    \item Datasets used
+    \item Baselines for comparison
+    \item Evaluation metrics
+    \item Implementation details
+\end{itemize}
+
+\subsection{Main Results}
+\label{sec:results}
+
+Present your main results. Tables are effective for quantitative comparisons:
+
+\begin{table}[t]
+    \centering
+    \caption{Results on benchmark datasets. Best in \textbf{bold}.}
+    \label{tab:results}
+    \small
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{Method} & \textbf{A} & \textbf{B} & \textbf{C} & \textbf{Avg.} \\
+        \midrule
+        Baseline 1 & 85.2 & 78.3 & 91.0 & 84.8 \\
+        Baseline 2 & 87.1 & 80.5 & 92.3 & 86.6 \\
+        Baseline 3 & 88.4 & 82.1 & 93.1 & 87.9 \\
+        \midrule
+        Ours & \textbf{91.2} & \textbf{85.7} & \textbf{95.4} & \textbf{90.8} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Ablation Studies}
+\label{sec:ablations}
+
+Include ablation studies to validate design choices.
+
+% ============================================
+% CONCLUSION
+% ============================================
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+Summarize your work and contributions. Discuss limitations and future work.
+
+\paragraph{Limitations.} Acknowledge any limitations of your approach.
+
+\paragraph{Future Work.} Suggest directions for future research.
+
+% ============================================
+% ACKNOWLEDGMENTS
+% ============================================
+
+\section*{Acknowledgments}
+
+We thank the anonymous reviewers for their valuable feedback. This work was supported by [funding sources].
+
+% ============================================
+% REFERENCES
+% ============================================
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% ============================================
+% APPENDIX
+% ============================================
+
+\appendix
+
+\section{Additional Details}
+\label{app:details}
+
+Include supplementary material, proofs, additional experiments, etc.
+
+\section{Proofs}
+\label{app:proofs}
+
+\begin{theorem}
+    Statement of theorem.
+\end{theorem}
+
+\begin{proof}
+    Proof goes here.
+\end{proof}
+
+\end{document}
