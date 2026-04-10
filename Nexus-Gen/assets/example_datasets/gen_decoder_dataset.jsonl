@@ -1,0 +1,2 @@
+{"id":"EliGen_110152","source":"EliGen","images":["assets/example_datasets/images/gen_0.png"],"messages":[{"role":"user","content":"Generate an image according to the following description: A vibrant street with colorful houses and people walking."},{"role":"assistant","content":"Here is an image based on the description: <image>"}]}
+{"id":"zh_EliGen_110152","source":"EliGen","images":["assets/example_datasets/images/gen_0.png"],"messages":[{"role":"user","content":"根据以下描述生成一张图像：一条充满活力的街道，两旁是色彩斑斓的房屋，行人来往穿梭。"},{"role":"assistant","content":"这是根据您的描述生成的图像：<image>"}]}

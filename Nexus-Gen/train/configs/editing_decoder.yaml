@@ -1,0 +1,25 @@
+# pretrained model
+pretrained_text_encoder_path: models/FLUX/FLUX.1-dev/text_encoder/model.safetensors
+pretrained_dit_path: models/FLUX/FLUX.1-dev/flux1-dev.safetensors
+pretrained_vae_path: models/FLUX/FLUX.1-dev/ae.safetensors
+# projector of editing decoder is initialized from qwen, so we need to set the path of qwen model
+qwenvl_path: models/Qwen/Qwen2.5-VL-7B-Instruct
+# embed dataset path
+dataset_path: assets/example_datasets/embeds_edit/edit_decoder_embeds_dataset.jsonl
+output_path: workdirs/model_output/editing_decoder
+height: 512
+width: 512
+dataloader_num_workers: 12
+learning_rate: 0.00001
+use_gradient_checkpointing: False
+accumulate_grad_batches: 16
+batch_size: 1
+# "auto" to use ddp, "deepspeed_stage_3" to use deepspeed stage 3
+training_strategy: deepspeed_stage_3
+precision: bf16
+# steps to save checkpoint
+steps_per_epoch: 64000
+max_epochs: 1000
+lr_warmup_steps: 100
+# finetune from Nexus-GenV2's editing_decoder. Set to 'None' if train from Flux DiT.
+load_from: models/Nexus-GenV2/edit_decoder.bin

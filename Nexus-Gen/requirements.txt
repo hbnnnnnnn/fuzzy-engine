@@ -1,0 +1,4 @@
+qwen_vl_utils
+flash-attn
+transformers==4.49.0
+gradio
