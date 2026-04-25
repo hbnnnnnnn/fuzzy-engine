@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=mrag-ctrl-test
-#SBATCH --partition=batch
+#SBATCH --partition=002-partition-default
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=16
 #SBATCH --time=2-00:00:00
-#SBATCH --output=slurm_mrag_ctrl_%A_%a.out
-#SBATCH --error=slurm_mrag_ctrl_%A_%a.err
+#SBATCH --output=logs/slurm_mrag_ctrl_%A_%a.out
+#SBATCH --error=logs/slurm_mrag_ctrl_%A_%a.err
 #SBATCH --array=0-4%2          # 5 controlled test cases, 2 concurrent max
 
 # =============================================================================
@@ -20,24 +20,25 @@
 # actually improves generation quality over the baseline.
 # =============================================================================
 
-module purge
-source ~/miniconda3/bin/activate
-conda activate nexus
+PROJECT_ROOT="/lustre/users/vmduc/Projects/fuzzy-engine"
+PYTHON="${PROJECT_ROOT}/.venv/bin/python"
 
-echo "Installing dependencies..."
-pip install faiss-gpu scikit-learn --quiet
-echo "Dependencies installed."
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_OFFLINE=1
+export TORCH_HOME="${PROJECT_ROOT}/.torch"
+export DS_BUILD_OPS=0
+export DS_SKIP_CUDA_CHECK=1
+export CUDA_LAUNCH_BLOCKING=1
 
-cd ~/ndbao/Nexus-Gen
+cd "${PROJECT_ROOT}/Nexus-Gen"
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-MRAG_DB_PATH="mrag-db"
-OUTPUT_DIR="mrag_results_controlled"
+MRAG_DB_PATH="${PROJECT_ROOT}/mrag-db"
+OUTPUT_DIR="${PROJECT_ROOT}/workdirs/mrag_results_controlled"
+LORA_CKPT_DIR="${PROJECT_ROOT}/workdirs/rag_patch_v2/checkpoints/epoch=4-step=315"
 TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
-
-export CUDA_LAUNCH_BLOCKING=1
 
 mkdir -p "${OUTPUT_DIR}/mrag"
 mkdir -p "${OUTPUT_DIR}/baseline"
@@ -126,7 +127,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  [1/2] Running MRAG-Enhanced Generation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-python3 image_generation_mrag.py \
+"$PYTHON" image_generation_mrag.py \
     --prompt "$PROMPT" \
     --enable_mrag \
     --mrag_db_path "$MRAG_DB_PATH" \
@@ -136,7 +137,7 @@ python3 image_generation_mrag.py \
     --image_weight 0.7 \
     --text_weight 0.3 \
     --use_dual_stream \
-    --stream2_weight 0.3 \
+    --lora_checkpoint_dir "$LORA_CKPT_DIR" \
     --fp8_quantization \
     --enable_cpu_offload \
     --device "cuda:0" \
@@ -161,7 +162,7 @@ if [ -d "$MRAG_REF_AUTO_DIR" ]; then
     ls -1 "$RAG_REF_DIR/" 2>/dev/null | while read f; do echo "    - $f"; done
 fi
 
-python3 -c "import torch; torch.cuda.empty_cache()" 2>/dev/null
+"$PYTHON" -c "import torch; torch.cuda.empty_cache()" 2>/dev/null
 sleep 5
 
 # =============================================================================
@@ -172,7 +173,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  [2/2] Running Baseline Generation (No MRAG)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-python3 image_generation_mrag.py \
+"$PYTHON" image_generation_mrag.py \
     --prompt "$PROMPT" \
     --no_mrag \
     --no_dual_stream \

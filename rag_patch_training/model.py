@@ -552,29 +552,33 @@ class RAGPatchTrainer(pl.LightningModule):
         # STEP 4 — Fusion & Loss
         # ==============================================================
 
-        # Final predicted velocity (with zero-init gate for stable start)
-        v_pred = e_0 + self.correction_gate * S_phi
-
         # Training target — flow matching velocity:  v* = ε − z_0
-        # scheduler.training_target() is stateless: target = noise - sample
-        training_target = (epsilon - z_0).to(dtype=v_pred.dtype)
+        training_target = (epsilon - z_0).to(dtype=S_phi.dtype)
 
-        # Per-sample MSE over (C, H/8, W/8): shape (B,)
-        # F.mse_loss(reduction="none") gives (B, C, H, W); we mean over C,H,W.
+        # ── Fusion loss: trains correction_gate ────────────────────────
+        v_pred = e_0 + self.correction_gate * S_phi
         per_sample_mse = F.mse_loss(
             v_pred.float(), training_target.float(), reduction="none"
         ).mean(dim=[1, 2, 3])                                  # (B,)
 
-        # BSMNTW importance weighting — one weight per sample's timestep.
-        # scheduler.linear_timesteps_weights is a 1-D tensor of length
-        # num_train_timesteps on CPU.  We use the same vectorised index lookup
-        # computed above for the sigmas (tids is already in scope).
         bsmntw_weights = sched.linear_timesteps_weights[tids].to(
             device=device, dtype=v_pred.dtype
         )                                                      # (B,)
+        loss_fusion = (per_sample_mse * bsmntw_weights).mean()
 
-        # Weighted mean over the batch → scalar loss
-        loss = (per_sample_mse * bsmntw_weights).mean()
+        # ── Residual supervision: trains LoRA + style projectors ───────
+        # S_phi should learn to predict the velocity residual (target − e_0).
+        # This loss gives S_phi a non-zero gradient even when gate ≈ 0,
+        # fixing the zero-init gate problem that suppressed all LoRA/projector
+        # gradients and kept the correction stream untrained.
+        residual_target = (training_target - e_0.detach()).to(dtype=S_phi.dtype)
+        per_sample_residual = F.mse_loss(
+            S_phi.float(), residual_target.float(), reduction="none"
+        ).mean(dim=[1, 2, 3])                                  # (B,)
+        loss_patch = (per_sample_residual * bsmntw_weights).mean()
+
+        # Total loss: alpha=0.5 balances residual supervision vs fusion.
+        loss = loss_fusion + 0.5 * loss_patch
 
         return loss
 
@@ -583,11 +587,13 @@ class RAGPatchTrainer(pl.LightningModule):
     # ──────────────────────────────────────────────────────────────────────
 
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
+        print(f"[step {batch_idx}] training_step start", flush=True)
         loss = self.forward(
             x=batch["image"],
             prompts=batch["prompt"],
             rag_images=batch["rag_images"],
         )
+        print(f"[step {batch_idx}] loss={loss.item():.4f}", flush=True)
         self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         lr = self.trainer.optimizers[0].param_groups[0]["lr"]
         self.log("lr", lr, prog_bar=True, on_step=True, on_epoch=False)
@@ -606,12 +612,19 @@ class RAGPatchTrainer(pl.LightningModule):
         trainable_params += list(self.style_to_pooled.parameters())
         trainable_params += [self.correction_gate]
 
-        # DeepSpeedCPUAdam is required when offload_optimizer=True (ZeRO-Offload).
-        # PyTorch AdamW has no fused CPU kernel, so DeepSpeed rejects it outright.
-        # DeepSpeedCPUAdam is a drop-in replacement with a fused C++ CPU Adam kernel
-        # purpose-built for ZeRO-Offload and accepts the same arguments.
-        from deepspeed.ops.adam import DeepSpeedCPUAdam
-        optimizer = DeepSpeedCPUAdam(trainable_params, lr=self.learning_rate)
+        # Use DeepSpeedCPUAdam when offload_optimizer is active (ZeRO Stage 2/3
+        # with CPU offload).  Fall back to standard AdamW for DDP / single-GPU
+        # runs where DeepSpeed ops may not be available.
+        try:
+            trainer_strategy = self.trainer.strategy.__class__.__name__ if hasattr(self, "trainer") and self.trainer else ""
+        except Exception:
+            trainer_strategy = ""
+        is_deepspeed = "DeepSpeed" in trainer_strategy
+        if is_deepspeed:
+            from deepspeed.ops.adam import DeepSpeedCPUAdam
+            optimizer = DeepSpeedCPUAdam(trainable_params, lr=self.learning_rate)
+        else:
+            optimizer = torch.optim.AdamW(trainable_params, lr=self.learning_rate)
 
         scheduler = get_constant_schedule_with_warmup(
             optimizer, num_warmup_steps=self.lr_warmup_steps,
@@ -640,8 +653,6 @@ class RAGPatchTrainer(pl.LightningModule):
         outside the context the param reverts to its shard.  We only run the
         body on rank 0 to avoid redundant file I/O.
         """
-        import deepspeed
-
         sd = {}
 
         # Only gather + save on rank 0 (or when called outside training, e.g.
@@ -663,7 +674,17 @@ class RAGPatchTrainer(pl.LightningModule):
             + [self.correction_gate]
         )
 
-        with deepspeed.zero.GatheredParameters(all_params, enabled=is_ds_active):
+        # Only import deepspeed when the ZeRO-3 engine is actually active.
+        # Importing deepspeed unconditionally is expensive (8-20s on login nodes
+        # and can hang on GPU nodes while it tries to JIT-compile CUDA extensions).
+        if is_ds_active:
+            import deepspeed
+            ctx = deepspeed.zero.GatheredParameters(all_params, enabled=True)
+        else:
+            from contextlib import nullcontext
+            ctx = nullcontext()
+
+        with ctx:
             is_rank0 = (self.trainer is None) or (self.trainer.global_rank == 0)
             if is_rank0:
                 # LoRA adapter weights only (no base model weights)

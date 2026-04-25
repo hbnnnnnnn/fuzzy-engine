@@ -114,8 +114,11 @@ def _build_dataset(
     rag_db_dir = os.path.abspath(rag_db_dir)
 
     # ── Load JourneyDB metadata ─────────────────────────────────────────
+    # Support both a pre-converted metadata.jsonl and the original release file
     jdb_meta_path = os.path.join(journeydb_dir, "metadata.jsonl")
-    jdb_images_dir = os.path.join(journeydb_dir, "images")
+    if not os.path.isfile(jdb_meta_path):
+        jdb_meta_path = os.path.join(journeydb_dir, "train_anno_realease_repath.jsonl")
+    jdb_images_dir = os.path.join(journeydb_dir, "imgs")
     print(f"Loading JourneyDB metadata from {jdb_meta_path} ...")
     jdb_entries = _load_jsonl(jdb_meta_path)
     if max_entries > 0:
@@ -181,7 +184,7 @@ def _build_dataset(
         valid_entries.extend(batch_entries)
 
     for entry in tqdm(jdb_entries, desc="Preparing batches"):
-        img_path = os.path.join(jdb_images_dir, entry["image_path"])
+        img_path = os.path.join(jdb_images_dir, entry.get("image_path") or entry.get("img_path", ""))
         if not os.path.isfile(img_path):
             continue
         try:

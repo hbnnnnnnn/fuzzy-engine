@@ -1,0 +1,61 @@
+# ── Virtual environments ──────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── uv ────────────────────────────────────────────────────────────────────
+uv.lock
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── Large binary / data files ─────────────────────────────────────────────
+mrag-db/
+mrag-db.zip
+*.faiss
+*.zip
+*.tar
+*.tar.gz
+
+# ── Dataset caches & generated artefacts ──────────────────────────────────
+rag_patch_training/dataset_cache.jsonl
+rag_patch_training/dataset.jsonl
+rag_patch_training/dataset_prompt-mrag_rag-mrag.jsonl
+
+# ── Model weights & checkpoints ───────────────────────────────────────────
+Nexus-Gen/models/
+workdirs/
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# ── DiffSynth-Studio (installed separately) ───────────────────────────────
+Nexus-Gen/DiffSynth-Studio/
+
+# ── Torch / HuggingFace caches ────────────────────────────────────────────
+.torch/
+.cache/
+
+# ── SLURM logs ────────────────────────────────────────────────────────────
+logs/
+*.out
+*.err
+slurm_*.out
+slurm_*.err
+
+# ── macOS artefacts ───────────────────────────────────────────────────────
+__MACOSX/
+.DS_Store
+
+# ── Jupyter ───────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Misc ──────────────────────────────────────────────────────────────────
+*.egg-info/
+dist/
+build/

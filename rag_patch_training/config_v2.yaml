@@ -16,8 +16,8 @@ pretrained_vae_path:           models/FLUX/FLUX.1-dev/ae.safetensors
 # Image & prompt sourced from JourneyDB; RAG images retrieved from mrag-db.
 journeydb_dir: /lustre/share/downloaded/dataset/JourneyDB/data/train
 rag_db_dir:    /lustre/users/vmduc/Projects/fuzzy-engine/mrag-db
-cache_path:    /lustre/users/vmduc/Projects/fuzzy-engine/rag_patch_training/dataset_cache.jsonl   # auto-built on first run
-output_path:   workdirs/rag_patch
+cache_path:    /lustre/users/vmduc/Projects/fuzzy-engine/rag_patch_training/dataset_cache.jsonl   # reuse existing cache from v1
+output_path:   workdirs/rag_patch_v2
 image_size:   512
 num_rag_images: 3
 center_crop:  true
@@ -29,7 +29,7 @@ lora_alpha:   16
 lora_dropout: 0.0
 
 # --- Training ---
-learning_rate:              0.00001      # 1e-5
+learning_rate:              0.00003      # 3e-5 (3x higher for faster convergence with residual loss)
 lr_warmup_steps:            100
 use_gradient_checkpointing: true
 t5_sequence_length:         512

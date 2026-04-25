@@ -1,0 +1,86 @@
+version: "3"
+
+vars:
+  PROJECT_ROOT:
+    sh: pwd
+  NEXUS_GEN_ROOT: "{{.PROJECT_ROOT}}/Nexus-Gen"
+  DIFFSYNTH_ROOT: "{{.NEXUS_GEN_ROOT}}/DiffSynth-Studio"
+
+tasks:
+  train:
+    desc: Run RAG Patch Training locally (conda env "nexus" must be active)
+    vars:
+      config:       '{{.config       | default "rag_patch_training/config.yaml"}}'
+      rag_db_dir:   '{{.rag_db_dir   | default "/lustre/users/vmduc/Projects/fuzzy-engine/mrag-db"}}'
+      output_path:  '{{.output_path  | default "workdirs/rag_patch"}}'
+      num_devices:  '{{.num_devices  | default "1"}}'
+      log_root:     '{{.log_root     | default "logs"}}'
+    cmds:
+      - |
+        mkdir -p {{.output_path | quote}} {{.log_root | quote}}
+        export PYTHONPATH="{{.PROJECT_ROOT}}:{{.NEXUS_GEN_ROOT}}:{{.DIFFSYNTH_ROOT}}:${PYTHONPATH:-}"
+        export TRITON_CACHE_DIR="/tmp/triton_cache_rag_patch_$$"
+        mkdir -p "$TRITON_CACHE_DIR"
+        python rag_patch_training/train.py \
+          --config {{.config | quote}} \
+          --rag_db_dir {{.rag_db_dir | quote}} \
+          --output_path {{.output_path | quote}} \
+          --num_devices {{.num_devices}} \
+          {{.CLI_ARGS}}
+
+  train-slurm:
+    desc: Submit RAG Patch Training as a SLURM job. Lightning auto-detects GPU count from SLURM allocation.
+    vars:
+      config:       '{{.config       | default "rag_patch_training/config.yaml"}}'
+      rag_db_dir:   '{{.rag_db_dir   | default "/lustre/users/vmduc/Projects/fuzzy-engine/mrag-db"}}'
+      output_path:  '{{.output_path  | default "workdirs/rag_patch"}}'
+      gpus:         '{{.gpus         | default "1"}}'
+      mem:          '{{.mem          | default "64G"}}'
+      cpus:         '{{.cpus         | default "16"}}'
+      time:         '{{.time         | default "2-00:00:00"}}'
+      p:            '{{.p            | default "batch"}}'
+      tag:          '{{.tag          | default "latest"}}'
+      log_root:     '{{.log_root     | default "logs"}}'
+    cmds:
+      - |
+        mkdir -p {{.log_root | quote}}
+        sbatch <<EOF
+        #!/bin/bash
+        #SBATCH --job-name=rag-patch
+        #SBATCH --partition={{.p}}
+        #SBATCH --gres=gpu:{{.gpus}}
+        #SBATCH --mem={{.mem}}
+        #SBATCH --cpus-per-task={{.cpus}}
+        #SBATCH --time={{.time}}
+        #SBATCH --output={{.PROJECT_ROOT}}/{{.log_root}}/%x_%j.out
+        #SBATCH --error={{.PROJECT_ROOT}}/{{.log_root}}/%x_%j.err
+        #SBATCH --container-image=/lustre/users/vmduc/container_cache/image_generation:{{.tag}}.sqsh
+        #SBATCH --container-mounts=/lustre:/lustre,/store:/store,/home:/home
+
+        set -euo pipefail
+
+        cd "{{.PROJECT_ROOT}}" || { echo "Failure: Could not cd to {{.PROJECT_ROOT}}"; exit 1; }
+
+        source .venv/bin/activate
+
+        echo "===================================================="
+        echo "  RAG Patch Training"
+        echo "  Node  : \$(hostname)"
+        echo "  GPUs  : \$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | paste -sd', ')"
+        echo "  Date  : \$(date)"
+        echo "===================================================="
+
+        export PYTHONPATH="{{.PROJECT_ROOT}}:{{.NEXUS_GEN_ROOT}}:{{.DIFFSYNTH_ROOT}}:\${PYTHONPATH:-}"
+        export TRITON_CACHE_DIR="/tmp/triton_cache_\${SLURM_JOB_ID}"
+        mkdir -p "\${TRITON_CACHE_DIR}"
+
+        # num_devices is intentionally omitted — Lightning reads CUDA_VISIBLE_DEVICES
+        # set by SLURM and uses all allocated GPUs automatically.
+        srun python rag_patch_training/train.py \
+          --config {{.config | quote}} \
+          --rag_db_dir {{.rag_db_dir | quote}} \
+          --output_path {{.output_path | quote}} \
+          {{.CLI_ARGS}}
+
+        echo "Training complete."
+        EOF

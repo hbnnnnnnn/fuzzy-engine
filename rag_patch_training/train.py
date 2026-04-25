@@ -21,11 +21,12 @@ import torch
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 
-# Ensure Nexus-Gen imports work
+# Ensure project root, Nexus-Gen, and DiffSynth are importable
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_NEXUS_GEN_ROOT = os.path.join(_SCRIPT_DIR, "..", "Nexus-Gen")
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, ".."))
+_NEXUS_GEN_ROOT = os.path.join(_PROJECT_ROOT, "Nexus-Gen")
 _DIFFSYNTH_ROOT = os.path.join(_NEXUS_GEN_ROOT, "DiffSynth-Studio")
-for _p in (_NEXUS_GEN_ROOT, _DIFFSYNTH_ROOT):
+for _p in (_PROJECT_ROOT, _NEXUS_GEN_ROOT, _DIFFSYNTH_ROOT):
     _p = os.path.abspath(_p)
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -111,6 +112,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--training_strategy", type=str, default="deepspeed_stage_2",
                         choices=["auto", "ddp", "deepspeed_stage_2",
                                  "deepspeed_stage_3"])
+    parser.add_argument("--num_devices", type=int, default=None,
+                        help="Number of GPUs to use. Defaults to all visible GPUs.")
+    parser.add_argument("--max_entries", type=int, default=0,
+                        help="Limit JourneyDB entries for dataset build (0 = all).")
 
     args = parser.parse_args()
 
@@ -150,15 +155,17 @@ class LoRASaveCallback(Callback):
         # LoRA adapter weights (patch_dit is a PeftModel)
         pl_module.patch_dit.save_pretrained(os.path.join(save_dir, "lora"))
 
-        # Style projectors
+        # Style projectors + correction_gate
         torch.save(
             {
                 "style_to_context": pl_module.style_to_context.state_dict(),
                 "style_to_pooled": pl_module.style_to_pooled.state_dict(),
+                "correction_gate": pl_module.correction_gate.data.cpu(),
             },
             os.path.join(save_dir, "style_projectors.pt"),
         )
-        print(f"[LoRASaveCallback] Saved checkpoint to {save_dir}")
+        print(f"[LoRASaveCallback] Saved checkpoint to {save_dir} "
+              f"(gate={pl_module.correction_gate.item():.6f})")
 
 
 def main() -> None:
@@ -215,14 +222,21 @@ def main() -> None:
         steps_per_epoch=args.steps_per_epoch,
         center_crop=args.center_crop,
         random_flip=args.random_flip,
+        max_entries=getattr(args, "max_entries", 0),
     )
+    # pin_memory requires CUDA-capable pin_memory thread; disable to avoid
+    # deadlocks in SLURM environments where CUDA is initialised before fork.
+    # Use persistent_workers + spawn context when num_workers > 0 to avoid
+    # the classic fork+CUDA hang on Linux.
     train_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.dataloader_num_workers,
         collate_fn=collate_fn,
-        pin_memory=True,
+        pin_memory=False,
+        persistent_workers=(args.dataloader_num_workers > 0),
+        multiprocessing_context=("spawn" if args.dataloader_num_workers > 0 else None),
     )
 
     # ---- DeepSpeed config (CPU offloading for memory) ----
@@ -249,10 +263,15 @@ def main() -> None:
         )
 
     # ---- Trainer ----
+    import torch
+    from lightning.pytorch.loggers import CSVLogger
+    n_gpus = args.num_devices if args.num_devices is not None else torch.cuda.device_count()
+    n_gpus = max(1, n_gpus)
+    csv_logger = CSVLogger(save_dir=args.output_path, name="logs")
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,
         accelerator="gpu",
-        devices=2,
+        devices=n_gpus,
         precision=args.precision,
         strategy=strategy,
         default_root_dir=args.output_path,
@@ -260,9 +279,10 @@ def main() -> None:
         callbacks=[
             LoRASaveCallback(output_dir=os.path.join(args.output_path, "checkpoints")),
         ],
-        logger=None,
-        log_every_n_steps=5,
+        logger=csv_logger,
+        log_every_n_steps=1,
         gradient_clip_val=1.0,
+        enable_progress_bar=False,   # suppress tqdm (no TTY in SLURM)
     )
 
     # ---- Launch ----

@@ -98,10 +98,19 @@ class MRAGRetriever:
             f"text index: {self.txt_index.ntotal} vectors"
         )
 
-        # ---- Metadata -----------------------------------------------------
-        meta_path = os.path.join(db_path, "metadata.json")
-        with open(meta_path, "r") as f:
-            meta_list = json.load(f)
+        # ---- Metadata (supports both metadata.json and metadata.jsonl) -----
+        meta_json  = os.path.join(db_path, "metadata.json")
+        meta_jsonl = os.path.join(db_path, "metadata.jsonl")
+        if os.path.isfile(meta_json):
+            with open(meta_json, "r") as f:
+                meta_list = json.load(f)
+        elif os.path.isfile(meta_jsonl):
+            with open(meta_jsonl, "r") as f:
+                meta_list = [json.loads(line) for line in f if line.strip()]
+        else:
+            raise FileNotFoundError(
+                f"Neither metadata.json nor metadata.jsonl found in {db_path}"
+            )
         self.metadata: Dict[int, Dict] = {m["id"]: m for m in meta_list}
 
         # ---- SigLIP model -------------------------------------------------
