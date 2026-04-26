@@ -1,0 +1,60 @@
+# ============================================================================
+#  RAG Patch Training — Configuration
+# ============================================================================
+# Values here override CLI defaults.  Paths are relative to the Nexus-Gen
+# root directory unless they are absolute.
+# ============================================================================
+
+# --- Pretrained model paths (relative to Nexus-Gen root) ---
+# Nexus-GenV2 generation decoder (contains the fine-tuned FLUX DiT + adapter
+# Linear(3584→4096)→LN→ReLU→Linear(4096→4096)→LN that bridges Qwen → DiT).
+nexgen_decoder_path:           models/Nexus-GenV2/generation_decoder.bin
+# CLIP-L is still loaded for the empty-string pooled-conditioning slot.
+pretrained_text_encoder_path:  models/FLUX/FLUX.1-dev/text_encoder/model.safetensors
+# Qwen2.5-VL HuggingFace folder (config.json + 4-shard safetensors).
+qwen_ckpt_path:                models/Nexus-GenV2
+pretrained_vae_path:           models/FLUX/FLUX.1-dev/ae.safetensors
+# pretrained_t5_path: deprecated since F1; T5-XXL is no longer loaded.
+# Stream 1 conditioning now comes from Qwen2.5-VL → adapter (81 tokens).
+
+# --- Dataset ---
+# Image & prompt sourced from JourneyDB; RAG images retrieved from mrag-db.
+journeydb_dir: /media02/nthuy/ndbao/data/journeydb_dataset
+rag_db_dir:    /media02/nthuy/ndbao/src/Nexus-Gen/mrag-db
+cache_path:    /media02/nthuy/ndbao/src/rag_patch_training/dataset.jsonl   # auto-built on first run
+# Resolved relative to the launcher's cwd (=NDBAO_DIR=/media02/nthuy/ndbao);
+# matches the existing checkpoint root used by the eval scripts.
+output_path:   experiments/workdirs/rag_patch
+image_size:   512
+num_rag_images: 3
+center_crop:  true
+random_flip:  false
+
+# --- LoRA ---
+lora_rank:    16
+lora_alpha:   16
+lora_dropout: 0.0
+
+# --- Training ---
+learning_rate:              0.00001      # 1e-5
+lr_warmup_steps:            100
+use_gradient_checkpointing: true
+t5_sequence_length:         512
+guidance_scale:             3.5
+torch_dtype_str:            bf16
+
+# --- Trainer ---
+batch_size:               1
+accumulate_grad_batches:  8              # effective batch = 1 × 8 × 2 GPUs = 16
+dataloader_num_workers:   4
+steps_per_epoch:          1000
+# F6: 5 → 10 epochs.  With 2 GPUs × accum 8 × 1000 steps_per_epoch the
+# per-epoch optimizer-step count is ~125, so 10 epochs ≈ 1.25k steps.
+# (Plan called for ≥ 10k steps; if the per-GPU batch budget allows it,
+# bump steps_per_epoch to ~8000 or max_epochs to ~80 — but be aware of
+# the per-step Qwen.generate cost added in F1.)
+max_epochs:               10
+precision:                bf16-mixed
+# DeepSpeed Stage 2 (no param offload) — shards optimizer+grads across
+# 2 GPUs.  ~30-32 GB VRAM per GPU after F1's Qwen-shuttling peak.
+training_strategy:        deepspeed_stage_2
