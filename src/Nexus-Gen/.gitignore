@@ -1,0 +1,12 @@
+**/workdirs/**
+**/data/**
+data
+workdirs
+__pycache__
+**/__pycache__/**
+models
+t2i_models
+.vscode
+output
+wandb
+**.pt
