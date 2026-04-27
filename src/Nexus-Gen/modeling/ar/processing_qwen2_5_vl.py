@@ -20,7 +20,11 @@ import re
 from typing import List, Union
 
 from transformers.feature_extraction_utils import BatchFeature
-from transformers.image_utils import ImageInput, VideoInput
+from transformers.image_utils import ImageInput
+try:
+    from transformers.video_utils import VideoInput
+except ImportError:
+    from transformers.image_utils import ImageInput as VideoInput
 from transformers.processing_utils import ProcessingKwargs, ProcessorMixin, Unpack, VideosKwargs
 from transformers.tokenization_utils_base import PreTokenizedInput, TextInput
 

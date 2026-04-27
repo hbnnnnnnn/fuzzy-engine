@@ -3,7 +3,18 @@ import torch
 import torch.nn as nn
 from typing import Optional, Tuple
 from transformers.activations import ACT2FN
-from transformers.modeling_rope_utils import _compute_default_rope_parameters
+try:
+    from transformers.modeling_rope_utils import _compute_default_rope_parameters
+except ImportError:
+    # transformers ≥5.0 removed this function; provide a local equivalent
+    import torch as _torch
+    def _compute_default_rope_parameters(config, device=None, seq_len=None, **kwargs):
+        base = getattr(config, "rope_theta", 10000.0)
+        partial = getattr(config, "partial_rotary_factor", 1.0)
+        head_dim = getattr(config, "head_dim", None) or config.hidden_size // config.num_attention_heads
+        dim = int(head_dim * partial)
+        inv_freq = 1.0 / (base ** (_torch.arange(0, dim, 2, dtype=_torch.int64).to(device=device, dtype=_torch.float) / dim))
+        return inv_freq, 1.0
 
 def rotate_half(x):
     """Rotates half the hidden dims of the input."""
