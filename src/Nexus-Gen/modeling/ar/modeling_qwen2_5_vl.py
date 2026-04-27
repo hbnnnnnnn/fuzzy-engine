@@ -2123,7 +2123,26 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
 
             # token selection
             if do_sample:
+                # Diagnose NaN/inf in logits before softmax
+                has_nan = torch.isnan(next_token_scores).any()
+                has_inf = torch.isinf(next_token_scores).all(dim=-1).any()
+                if has_nan or has_inf:
+                    raw_nan = torch.isnan(next_token_logits).any()
+                    print(
+                        f"[_sample] WARNING: next_token_scores has NaN={has_nan}/all-inf={has_inf} "
+                        f"(raw logits NaN={raw_nan}, "
+                        f"logits min={next_token_logits[~torch.isnan(next_token_logits)].min() if not raw_nan else float('nan'):.4f}, "
+                        f"max={next_token_logits[~torch.isnan(next_token_logits)].max() if not raw_nan else float('nan'):.4f})",
+                        flush=True,
+                    )
                 probs = nn.functional.softmax(next_token_scores, dim=-1)
+                # Guard: replace any NaN/inf in probs with uniform distribution over EOS
+                if torch.isnan(probs).any() or (probs < 0).any():
+                    eos_id = generation_config.eos_token_id
+                    if isinstance(eos_id, list):
+                        eos_id = eos_id[0]
+                    probs = torch.zeros_like(probs)
+                    probs[:, eos_id] = 1.0
                 # TODO (joao): this OP throws "skipping cudagraphs due to ['incompatible ops']", find solution
                 next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
                 # while not bool(is_sampling_img) and torch.any(next_tokens == self.config.vision_end_token_id):
