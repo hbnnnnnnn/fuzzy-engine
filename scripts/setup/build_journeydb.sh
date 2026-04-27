@@ -28,6 +28,9 @@ echo "============================================================"
 cd "${PROJECT_DIR}"
 export PATH="${HOME}/.local/bin:${PATH}"
 
+# Ensure uv venv exists with all base deps
+uv sync --frozen
+
 uv run python build_journeydb_dataset.py
 
 echo ""
