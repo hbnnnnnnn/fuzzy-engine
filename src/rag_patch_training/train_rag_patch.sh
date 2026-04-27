@@ -70,6 +70,9 @@ export TORCH_HOME="${HOME}/.cache/torch"
 export DS_BUILD_OPS=0
 export DS_SKIP_CUDA_CHECK=1
 
+# Synchronous CUDA error reporting to get real stack traces on CUDA asserts
+export CUDA_LAUNCH_BLOCKING=1
+
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 
 # ---- Launch training inside container via srun + uv ----------------------
