@@ -33,6 +33,18 @@ from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.modeling_outputs import BaseModelOutputWithPast, ModelOutput
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 from transformers.modeling_utils import PreTrainedModel
+
+# transformers ≥5.x removed the 'default' RoPE type; add it back for compatibility
+if "default" not in ROPE_INIT_FUNCTIONS:
+    def _compute_default_rope_parameters_compat(config, device=None, seq_len=None, **kwargs):
+        import torch as _torch
+        base = getattr(config, "rope_theta", 10000.0)
+        partial = getattr(config, "partial_rotary_factor", 1.0)
+        head_dim = getattr(config, "head_dim", None) or config.hidden_size // config.num_attention_heads
+        dim = int(head_dim * partial)
+        inv_freq = 1.0 / (base ** (_torch.arange(0, dim, 2, dtype=_torch.int64).to(device=device, dtype=_torch.float) / dim))
+        return inv_freq, 1.0
+    ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters_compat
 from transformers.utils import (
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
