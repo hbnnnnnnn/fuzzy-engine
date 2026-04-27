@@ -19,7 +19,7 @@ pretrained_vae_path:           models/FLUX/FLUX.1-dev/ae.safetensors
 
 # --- Dataset ---
 # Image & prompt sourced from JourneyDB; RAG images retrieved from mrag-db.
-journeydb_dir: /lustre/users/vmduc/Projects/fuzzy-engine/data/journeydb_dataset
+journeydb_dir: /lustre/share/downloaded/dataset/JourneyDB/data/train
 rag_db_dir:    /lustre/users/vmduc/Projects/fuzzy-engine/mrag-db
 cache_path:    /lustre/users/vmduc/Projects/fuzzy-engine/data/dataset.jsonl   # auto-built on first run
 # Resolved relative to the launcher's cwd (=NDBAO_DIR=/media02/nthuy/ndbao);
