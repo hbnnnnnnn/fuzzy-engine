@@ -2079,6 +2079,13 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
                 model_kwargs,
                 is_encoder_decoder=self.config.is_encoder_decoder,
             )
+            # Update cache_position to reflect the next token's position. transformers 5.x
+            # _update_model_kwargs_for_generation no longer does this, so we do it here.
+            if model_kwargs.get("past_key_values") is not None:
+                past_len = model_kwargs["past_key_values"].get_seq_length()
+                model_kwargs["cache_position"] = torch.tensor(
+                    [past_len], device=input_ids.device
+                )
             # TODO: support batch image sampling
             if bool(is_sampling_img) and len(output_image_embeddings) < num_img_tokens:
                 output_image_embeddings.append(outputs.image_embeddings[:, -1, :].unsqueeze(1))
@@ -2240,8 +2247,14 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
     ):
         # Overwritten -- in specific circumstances we don't want to forward image inputs to the model
 
+        # In decode steps (cache_position[0] != 0), only pass the single new token to the model.
+        # transformers 5.x _sample passes next_sequence_length=1 explicitly; we replicate that here.
+        is_decode_step = cache_position is not None and cache_position.shape[0] == 1 and cache_position[0] != 0
+        next_sequence_length = 1 if is_decode_step else None
+
         model_inputs = super().prepare_inputs_for_generation(
             input_ids,
+            next_sequence_length=next_sequence_length,
             past_key_values=past_key_values,
             attention_mask=attention_mask,
             inputs_embeds=inputs_embeds,
@@ -2259,7 +2272,7 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
         # Qwen2-5-VL position_ids are prepared with rope_deltas in forward
         model_inputs["position_ids"] = None
 
-        if cache_position[0] != 0:
+        if is_decode_step:
             model_inputs["pixel_values"] = None
             model_inputs["pixel_values_videos"] = None
         return model_inputs
