@@ -811,6 +811,9 @@ http = [
 name = "fuzzy-engine"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "huggingface-hub" },
+]
 
 [package.optional-dependencies]
 train = [
@@ -846,6 +849,7 @@ requires-dist = [
     { name = "datasets", marker = "extra == 'train'", specifier = ">=4.4.1" },
     { name = "deepspeed", marker = "extra == 'train'", specifier = ">=0.18.2" },
     { name = "einops", marker = "extra == 'train'", specifier = ">=0.8.1" },
+    { name = "huggingface-hub", specifier = ">=1.12.0" },
     { name = "lightning", marker = "extra == 'train'", specifier = ">=2.6.1" },
     { name = "numpy", marker = "extra == 'train'", specifier = ">=1.26.4" },
     { name = "pandas", marker = "extra == 'train'", specifier = ">=2.3.3" },
