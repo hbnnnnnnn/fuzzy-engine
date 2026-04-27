@@ -1952,6 +1952,17 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
 
 
 
+    def _get_initial_cache_position(self, input_ids, model_kwargs):
+        """Compatibility shim: transformers >=5.x removed this method.
+        Sets model_kwargs['cache_position'] based on past_key_values length."""
+        past_key_values = model_kwargs.get("past_key_values", None)
+        past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+        cur_len = input_ids.shape[1]
+        model_kwargs["cache_position"] = torch.arange(
+            past_seen_tokens, past_seen_tokens + cur_len, device=input_ids.device
+        )
+        return model_kwargs
+
     def _sample(
         self,
         input_ids: torch.LongTensor,
