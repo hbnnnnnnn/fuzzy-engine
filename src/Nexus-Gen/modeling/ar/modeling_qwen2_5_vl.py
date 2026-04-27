@@ -2052,7 +2052,7 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
         num_img_tokens = self.get_num_image_tokens(generation_image_grid_thw)
         output_image_embeddings = []
         while self._has_unfinished_sequences(
-            this_peer_finished, synced_gpus, device=input_ids.device, cur_len=cur_len, max_length=max_length
+            this_peer_finished, synced_gpus, device=input_ids.device
         ):
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
