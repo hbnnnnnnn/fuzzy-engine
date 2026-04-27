@@ -4,7 +4,7 @@ venv/
 env/
 
 # ── uv ────────────────────────────────────────────────────────────────────
-uv.lock
+# uv.lock is intentionally tracked for reproducible installs
 
 # ── Python ────────────────────────────────────────────────────────────────
 __pycache__/

@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=rag-patch
-#SBATCH --partition=batch
+#SBATCH --partition=002-partition-default
 #SBATCH --gres=gpu:2
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=16
 #SBATCH --time=2-00:00:00
-#SBATCH --output=/media02/nthuy/ndbao/logs/rag_patch_training/train_%j.out
-#SBATCH --error=/media02/nthuy/ndbao/logs/rag_patch_training/train_%j.err
+#SBATCH --output=/lustre/users/vmduc/Projects/fuzzy-engine/logs/rag_patch_training/train_%j.out
+#SBATCH --error=/lustre/users/vmduc/Projects/fuzzy-engine/logs/rag_patch_training/train_%j.err
 
 # =============================================================================
 # RAG Patch Training — LoRA correction stream for FLUX DiT
@@ -17,42 +17,23 @@
 #
 # Resource budget  :  2 × GPU,  64 GB RAM,  16 CPUs
 # Strategy         :  DeepSpeed Stage 2 (no param offload, 2-GPU sharding)
+# Container        :  /lustre/users/vmduc/container_cache/image_generation_pipeline:latest.sqsh
+# Environment      :  uv (pyproject.toml at project root)
 # =============================================================================
 
 set -euo pipefail
 
-module purge
-source ~/miniconda3/bin/activate
-
-# ---- Create / reuse conda environment ------------------------------------
-ENV_NAME="nexus"
-if ! conda env list | grep -q "^${ENV_NAME} "; then
-    echo "Creating conda env '${ENV_NAME}' (clone of nexus)..."
-    conda create --name "${ENV_NAME}" --clone nexus -y
-    conda activate "${ENV_NAME}"
-    echo "Installing extra dependencies..."
-    pip install peft lightning deepspeed torchvision --quiet
-else
-    echo "Conda env '${ENV_NAME}' already exists."
-    conda activate "${ENV_NAME}"
-fi
-
-echo "============================================================"
-echo "  RAG Patch Training"
-echo "  Node  : $(hostname)"
-echo "  GPUs  : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | paste -sd', ')"
-echo "  Date  : $(date)"
-echo "  Env   : ${CONDA_DEFAULT_ENV}"
-echo "============================================================"
-
 # ---- Paths ---------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NDBAO_DIR="/media02/nthuy/ndbao"
-SRC_DIR="${NDBAO_DIR}/src"
+PROJECT_DIR="/lustre/users/vmduc/Projects/fuzzy-engine"
+SRC_DIR="${PROJECT_DIR}/src"
 NEXUS_DIR="${SRC_DIR}/Nexus-Gen"
 DIFFSYNTH_DIR="${NEXUS_DIR}/DiffSynth-Studio"
+CONTAINER_IMAGE="/lustre/users/vmduc/container_cache/image_generation_pipeline:latest.sqsh"
 
-cd "${NDBAO_DIR}"
+# ---- Ensure log directory exists -----------------------------------------
+mkdir -p "${PROJECT_DIR}/logs/rag_patch_training"
+
+cd "${PROJECT_DIR}"
 
 # ---- Verify Nexus-GenV2 weights exist ------------------------------------
 NEXGEN_DIT="${NEXUS_DIR}/models/Nexus-GenV2/generation_decoder.bin"
@@ -64,33 +45,49 @@ if [[ ! -f "${NEXGEN_DIT}" ]]; then
 fi
 echo "Base DiT weights: ${NEXGEN_DIT} ($(du -h "${NEXGEN_DIT}" | cut -f1))"
 
-# ---- Set PYTHONPATH so all imports resolve --------------------------------
-# SRC_DIR is needed so ``from rag_patch_training.model import ...`` resolves;
-# NEXUS_DIR + DIFFSYNTH_DIR for the in-tree Nexus-Gen + DiffSynth modules.
+echo "============================================================"
+echo "  RAG Patch Training"
+echo "  Node      : $(hostname)"
+echo "  Date      : $(date)"
+echo "  Project   : ${PROJECT_DIR}"
+echo "  Container : ${CONTAINER_IMAGE}"
+echo "============================================================"
+
+# ---- Environment variables passed into the container ---------------------
+# PYTHONPATH: SRC_DIR for rag_patch_training; NEXUS_DIR + DIFFSYNTH_DIR for
+#             in-tree Nexus-Gen + DiffSynth modules.
 export PYTHONPATH="${SRC_DIR}:${NEXUS_DIR}:${DIFFSYNTH_DIR}:${PYTHONPATH:-}"
 
-# ---- Redirect Triton autotune cache off NFS (avoids hang on exit) ---------
+# Redirect Triton autotune cache off NFS (avoids hang on exit)
 export TRITON_CACHE_DIR="/tmp/triton_cache_${SLURM_JOB_ID}"
-mkdir -p "${TRITON_CACHE_DIR}"
 
-# ---- Offline mode: prevent HuggingFace/Torch from hitting the internet ----
-# SLURM compute nodes typically have no outbound network.  Without this,
-# Transformers' first .from_pretrained() will time out trying to reach the hub.
+# Offline mode: compute nodes have no outbound network
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 export TORCH_HOME="${HOME}/.cache/torch"
 
-# ---- Skip DeepSpeed JIT extension build at import time --------------------
-# DS_BUILD_OPS=0 disables CUDA op compilation; ZeRO-2 weight sharding works
-# without those extensions and avoids a noisy multi-minute compile + the
-# associated nvcc-version checks.
+# Skip DeepSpeed JIT CUDA op compilation (ZeRO-2 works without it)
 export DS_BUILD_OPS=0
 export DS_SKIP_CUDA_CHECK=1
 
-# ---- Launch training (srun required for Lightning SLURM integration) -------
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+# ---- Launch training inside container via srun + uv ----------------------
 echo "Launching training..."
-srun python src/rag_patch_training/train.py \
-    --config src/rag_patch_training/config.yaml \
-    "$@"
+srun -l -K1 \
+    --container-image="${CONTAINER_IMAGE}" \
+    --container-remap-root \
+    --container-mounts /lustre:/lustre,/home:/home \
+    bash -c "
+        set -euo pipefail
+        mkdir -p '${TRITON_CACHE_DIR}'
+        cd '${PROJECT_DIR}'
+        export PATH=\"\${HOME}/.local/bin:\${PATH}\"
+        uv venv --system-site-packages .venv --quiet
+        uv sync --extra train --frozen --quiet
+        uv run python src/rag_patch_training/train.py \
+            --config src/rag_patch_training/config.yaml \
+            $@
+    "
 
 echo "Training complete."
