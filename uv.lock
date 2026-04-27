@@ -816,6 +816,7 @@ dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
+    { name = "setuptools" },
     { name = "tqdm" },
 ]
 
@@ -864,6 +865,7 @@ requires-dist = [
     { name = "pytorch-lightning", marker = "extra == 'train'", specifier = ">=2.6.1" },
     { name = "pyyaml", marker = "extra == 'train'", specifier = ">=6.0.3" },
     { name = "safetensors", marker = "extra == 'train'", specifier = ">=0.6.2" },
+    { name = "setuptools" },
     { name = "torchmetrics", marker = "extra == 'train'", specifier = ">=1.8.2" },
     { name = "torchvision", marker = "extra == 'train'", specifier = ">=0.19.0" },
     { name = "tqdm", specifier = ">=4.67.3" },

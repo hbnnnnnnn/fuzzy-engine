@@ -84,7 +84,8 @@ srun -l -K1 \
         cd '${PROJECT_DIR}'
         export PATH=\"\${HOME}/.local/bin:\${PATH}\"
         uv venv --system-site-packages .venv --quiet
-        uv sync --extra train --frozen --quiet
+        uv sync --frozen --quiet                          # install base deps (incl. setuptools) first
+        uv sync --extra train --frozen --quiet            # then build deepspeed + other train deps
         uv run python src/rag_patch_training/train.py \
             --config src/rag_patch_training/config.yaml \
             $@
