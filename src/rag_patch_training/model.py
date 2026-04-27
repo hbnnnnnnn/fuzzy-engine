@@ -331,7 +331,7 @@ class RAGPatchTrainer(pl.LightningModule):
         # (shuttled to GPU only during ``forward``).
         print("Loading Qwen2.5-VL AR model + processor …")
         qwen_ckpt_abs = _abs(qwen_ckpt_path)
-        qwen_config = AutoConfig.from_pretrained(qwen_ckpt_abs)
+        qwen_config = AutoConfig.from_pretrained(qwen_ckpt_abs, trust_remote_code=True)
         qwen_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             qwen_ckpt_abs,
             config=qwen_config,
